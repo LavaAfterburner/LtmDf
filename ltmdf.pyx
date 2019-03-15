@@ -118,11 +118,12 @@ class DataFrame(Environment):
         with open(file_name, "wb") as file:
             pickle.dump(file, df)
 
-    def from_csv(self, str path, int chunk_len, **kwargs):
+    def from_csv(self, str path, int chunk_len, columns, **kwargs):
         for chunk in pd.read_csv(
                                       path,
                                       chunksize=chunk_len,
                                       **kwargs):
+            chunk.columns = columns
             self.add_main_file(chunk)
 
     def add_padding(self, int padding):
