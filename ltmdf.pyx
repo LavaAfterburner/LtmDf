@@ -17,7 +17,7 @@ class Environment:
     def __init__(self, name="", preserved=False, zipped=False):
         self.env = self
         self.env_name = name
-        self.env_files = list()
+        self.env_count = 0
         self.env_main_files = list()
         self.env_support_files = dict()
         self.env_is_preserved = preserved
@@ -39,15 +39,15 @@ class Environment:
         cdef int target = index[0]
         if type == Environment.MAIN:
             # Is a main file
-            return self.env_files[self.env_main_files[target]]
+            return self.env_main_files[target]
         else:
             # Is a support file
-            return self.env_files[self.env_support_files[target]]
+            return self.env_support_files[target]
 
     def add_main_file(self, file, mode="wb"):
-        self.env_main_files.append(len(self.env_files))
         cdef str name = self.next_file_name()
-        self.env_files.append(name)
+        self.env_main_files.append(name)
+        self.env_count += 1
 
         with open(name, mode) as file_out:
             self.to_file(file, file_out)
@@ -55,13 +55,22 @@ class Environment:
 
     def add_support_file(self, parent, file, mode="wb"):
         if parent not in self.env_support_files:
-            self.env_support_files[parent] = len(self.env_files)
-            self.env_files.append(list())
+            self.env_support_files[parent] = list()
 
         cdef str name = self.next_support_name()
-        self.env_files[self.env_support_files[parent]].append(name)
+        self.env_support_files[parent].append(name)
+        self.env_count += 1
         with open(name, mode) as file_out:
             self.to_file(file, file_out)
+
+        return (parent, len(self.env_support_files[parent]) - 1)
+
+    def add_support_reference(self, parent, index):
+        if parent not in self.env_support_files:
+            self.env_support_files[parent] = list()
+
+        self.env_support_files[parent].append(
+            self[index[0], Environment.SUPPORT][index[1]])
 
     def next_env_name(self):
         cdef dir
@@ -72,10 +81,10 @@ class Environment:
         return "{}[LTM-DF]".format(count)
 
     def next_file_name(self):
-        return "{}\\{}[M]".format(self.env_name, len(self.env_files))
+        return "{}\\{}[M]".format(self.env_name, self.env_count)
 
     def next_support_name(self):
-        return "{}\\{}[S]".format(self.env_name, len(self.env_files))
+        return "{}\\{}[S]".format(self.env_name, self.env_count)
 
     def create_env(self):
         self.env_name = self.next_env_name()
@@ -97,7 +106,7 @@ class Environment:
         return pickle.load(file_in)
 
     def each_main_file(self):
-        for file in self.env_main_files:
+        for file in range(len(self.env_main_files)):
             yield file
 
 
@@ -130,24 +139,50 @@ class DataFrame(Environment):
         cdef int file, i
         cdef pad, chunk
         cdef str chunk_name
+        cdef tuple ref
 
-        for i, file in enumerate(self.each_main_file()):
-            chunk_name = self[file, Environment.MAIN]
+        for file in self.each_main_file():
+            chunk_name = self.env[file, Environment.MAIN]
             chunk = self.load_df(chunk_name)
 
-            if i != 0:
+            if file != 0:
                 pad = pd.concat([pad, chunk.head(padding)])
-                self.add_support_file(file, pad)
-                print(pad)
+                ref = self.add_support_file(file, pad)
+                self.add_support_reference(file - 1, ref)
             pad = chunk.tail(padding)
 
-            if i != 0:
+            if file != 0:
                 chunk.drop(chunk.head(padding).index, inplace=True)
-            if i != len(self.env_main_files) - 1:
+            if file != len(self.env_main_files) - 1:
                 chunk.drop(chunk.tail(padding).index, inplace=True)
-            print(chunk)
-            print("====================")
             self.save_df(chunk_name, chunk)
 
-    def preserve_data(self):
-        pass
+    def print_chunks(self):
+        print("Printing")
+        cdef file
+
+        cdef str pad_pre_name, chunk_name, pad_post_name
+        cdef pad_pre, chunk, pad_post
+
+        for file in self.each_main_file():
+            print(self.env[file, Environment.SUPPORT])
+            if file != 0:
+                pad_pre_name = self.env[file, Environment.SUPPORT][0]
+                pad_pre = self.load_df(pad_pre_name)
+                print(pad_pre)
+
+                if file != len(self.env_main_files) - 1:
+                    pad_post_name = self.env[file, Environment.SUPPORT][1]
+                    pad_post = self.load_df(pad_post_name)
+                    print(pad_post)
+
+            else:
+                pad_post_name = self.env[file, Environment.SUPPORT][0]
+                pad_post = self.load_df(pad_post_name)
+                print(pad_post)
+
+            chunk_name = self.env[file, Environment.MAIN]
+            chunk = self.load_df(chunk_name)
+            print(chunk)
+
+            print("=============================")
