@@ -23,4 +23,5 @@ x()
 """
 
 x = ltmdf.DataFrame()
-x.from_csv(".\\DUMP.TXT", 100000)
+x.from_csv(".\\DUMP.TXT", 100000, ["A", "B", "C"])
+x.add_padding(5)

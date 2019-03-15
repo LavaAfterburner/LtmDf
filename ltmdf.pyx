@@ -37,12 +37,12 @@ class Environment:
     def __getitem__(self, index):
         cdef int type = index[1]
         cdef int target = index[0]
-        if type == 1:
+        if type == Environment.MAIN:
             # Is a main file
-            return self.env_files[self.env_main_files[index]]
+            return self.env_files[self.env_main_files[target]]
         else:
             # Is a support file
-            return self.env_files[self.env_support_files[index]]
+            return self.env_files[self.env_support_files[target]]
 
     def add_main_file(self, file, mode="wb"):
         self.env_main_files.append(len(self.env_files))
@@ -116,7 +116,7 @@ class DataFrame(Environment):
 
     def save_df(self, str file_name, df):
         with open(file_name, "wb") as file:
-            pickle.dump(file, df)
+            pickle.dump(df, file)
 
     def from_csv(self, str path, int chunk_len, columns, **kwargs):
         for chunk in pd.read_csv(
@@ -127,8 +127,27 @@ class DataFrame(Environment):
             self.add_main_file(chunk)
 
     def add_padding(self, int padding):
-        for file in self.each_main_file():
-            pass
+        cdef int file, i
+        cdef pad, chunk
+        cdef str chunk_name
+
+        for i, file in enumerate(self.each_main_file()):
+            chunk_name = self[file, Environment.MAIN]
+            chunk = self.load_df(chunk_name)
+
+            if i != 0:
+                pad = pd.concat([pad, chunk.head(padding)])
+                self.add_support_file(file, pad)
+                print(pad)
+            pad = chunk.tail(padding)
+
+            if i != 0:
+                chunk.drop(chunk.head(padding).index, inplace=True)
+            if i != len(self.env_main_files) - 1:
+                chunk.drop(chunk.tail(padding).index, inplace=True)
+            print(chunk)
+            print("====================")
+            self.save_df(chunk_name, chunk)
 
     def preserve_data(self):
         pass
