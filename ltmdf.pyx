@@ -9,65 +9,125 @@ import os
 import shutil
 
 
-class DataFrame:
-    def run(self, func, list args=[], dict kwargs={}):
-        cdef str chunk_name
-        cdef df
-        for chunk_name in self.chunks:
-            with open(chunk_name, "rb") as file:
-                df = pickle.load(file)
-                df = func(df, *args, **kwargs)
-            with open(chunk_name, "wb") as file:
-                pickle.dump(df, file)
+class Environment:
 
-    def from_csv(self, str path, int chunksize, list columns, **kwargs):
-        cdef int num
-        cdef str chunk_name
-        for num, chunk in enumerate(pd.read_csv(
-                                                path,
-                                                chunksize=chunksize,
-                                                **kwargs)):
-            chunk_name = self.env + "df" + str(num) + ".dfc"
-            with open(chunk_name, "wb") as file:
-                chunk.columns = columns
-                pickle.dump(chunk, file)
-                self.chunks.append(chunk_name)
+    SUPPORT = 0
+    MAIN = 1
 
-    def from_pandas(self, df, int chunksize):
-        cdef int num
-        cdef str chunk_name
-        cdef int number_of_chunks = len(df) // chunksize + 1
-        for num in range(number_of_chunks):
-            chunk_name = self.env + "df" + str(num) + ".dfc"
-            with open(chunk_name, "wb") as file:
-                chunk = df[num * chunksize: (num + 1) * chunksize]
-                pickle.dump(chunk, file)
-                self.chunks.append(chunk_name)
+    def __init__(self, name="", preserved=False, zipped=False):
+        self.env = self
+        self.env_name = name
+        self.env_files = list()
+        self.env_main_files = list()
+        self.env_support_files = dict()
+        self.env_is_preserved = preserved
+        self.env_is_zipped = zipped
 
-    def from_ltmdf(self, df):
-        cdef str chunk
-        for chunk in df.chunks:
-            shutil.copy(chunk, self.env)
-
-    def clear(self):
-        cdef file
-        for file in os.scandir(self.env):
-            os.unlink(file.path)
-
-    def __init__(self):
-        self.chunks = list()
-        self.env = ".\\{}[LTM-DF]\\".format(_get_dfs_in_dir())
-
-        os.makedirs(self.env)
+        if self.env_name == "":
+            self.create_env()
+        else:
+            self.load_env()
 
     def __del__(self):
-        shutil.rmtree(self.env)
+        if not self.env_is_preserved:
+            self.destroy_env()
+        elif self.env_is_zipped:
+            self.zip_env()
+
+    def __getitem__(self, index):
+        cdef int type = index[1]
+        cdef int target = index[0]
+        if type == 1:
+            # Is a main file
+            return self.env_files[self.env_main_files[index]]
+        else:
+            # Is a support file
+            return self.env_files[self.env_support_files[index]]
+
+    def add_main_file(self, file, mode="wb"):
+        self.env_main_files.append(len(self.env_files))
+        cdef str name = self.next_file_name()
+        self.env_files.append(name)
+
+        with open(name, mode) as file_out:
+            self.to_file(file, file_out)
+        return len(self.env_main_files) - 1
+
+    def add_support_file(self, parent, file, mode="wb"):
+        if parent not in self.env_support_files:
+            self.env_support_files[parent] = len(self.env_files)
+            self.env_files.append(list())
+
+        cdef str name = self.next_support_name()
+        self.env_files[self.env_support_files[parent]].append(name)
+        with open(name, mode) as file_out:
+            self.to_file(file, file_out)
+
+    def next_env_name(self):
+        cdef dir
+        cdef count = 0
+        for dir in os.scandir(".\\"):
+            if dir.name.endswith("[LTM-DF]"):
+                count += 1
+        return "{}[LTM-DF]".format(count)
+
+    def next_file_name(self):
+        return "{}\\{}[M]".format(self.env_name, len(self.env_files))
+
+    def next_support_name(self):
+        return "{}\\{}[S]".format(self.env_name, len(self.env_files))
+
+    def create_env(self):
+        self.env_name = self.next_env_name()
+        os.makedirs(self.env_name)
+
+    def destroy_env(self):
+        shutil.rmtree(self.env_name)
+
+    def zip_env(self):
+        pass
+
+    def load_env(self):
+        pass
+
+    def to_file(self, file, file_out):
+        pickle.dump(file, file_out)
+
+    def from_file(self, file_in):
+        return pickle.load(file_in)
+
+    def each_main_file(self):
+        for file in self.env_main_files:
+            yield file
 
 
-cdef int _get_dfs_in_dir():
-    cdef entry
-    cdef int count = 0
-    for entry in os.scandir("."):
-        if entry.name.endswith("[LTM-DF]"):
-            count += 1
-    return count
+class DataFrame(Environment):
+    def __init__(self, **env_arguments):
+        super().__init__(**env_arguments)
+
+    def run(self):
+        pass
+
+    def load_df(self, str file_name):
+        cdef df
+        with open(file_name, "rb") as file:
+            df = pickle.load(file)
+        return df
+
+    def save_df(self, str file_name, df):
+        with open(file_name, "wb") as file:
+            pickle.dump(file, df)
+
+    def from_csv(self, str path, int chunk_len, **kwargs):
+        for chunk in pd.read_csv(
+                                      path,
+                                      chunksize=chunk_len,
+                                      **kwargs):
+            self.add_main_file(chunk)
+
+    def add_padding(self, int padding):
+        for file in self.each_main_file():
+            pass
+
+    def preserve_data(self):
+        pass
