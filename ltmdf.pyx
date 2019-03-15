@@ -113,9 +113,62 @@ class Environment:
 class DataFrame(Environment):
     def __init__(self, **env_arguments):
         super().__init__(**env_arguments)
+        self.is_padded = False
+        self.padding = 0
 
-    def run(self):
-        pass
+    def run(self, func, *args, **kwargs):
+
+        cdef str pad_pre_name, chunk_name, pad_post_name
+        cdef pad_pre, chunk, pad_post
+        cdef orig_pad_pre, orig_pad_post
+
+        for file in self.each_main_file():
+            chunk_name = self.env[file, Environment.MAIN]
+            chunk = self.load_df(chunk_name)
+
+            if self.is_padded:
+                if file != 0:
+                    pad_pre_name = self.env[file, Environment.SUPPORT][0]
+                    pad_pre = self.load_df(pad_pre_name)
+                    orig_pad_pre = pad_pre
+                    chunk = pd.concat([pad_pre, chunk])
+
+                    if file != len(self.env_main_files) - 1:
+                        pad_post_name = self.env[file, Environment.SUPPORT][1]
+                        pad_post = self.load_df(pad_post_name)
+                        orig_pad_post = pad_post
+                        chunk = pd.concat([chunk, pad_post])
+
+                else:
+                    pad_post_name = self.env[file, Environment.SUPPORT][0]
+                    pad_post = self.load_df(pad_post_name)
+                    orig_pad_post = pad_post
+                    chunk = pd.concat([chunk, pad_post])
+
+            chunk = func(chunk, *args, **kwargs)
+
+            if self.is_padded:
+                if file != 0:
+                    pad_pre = pd.concat([
+                                      orig_pad_pre.head(self.padding),
+                                      chunk.tail(self.padding)])
+                    self.save_df(pad_pre_name, pad_pre)
+                    chunk.drop(chunk.head(self.padding).index, inplace=True)
+
+                    if file != len(self.env_main_files) - 1:
+                        pad_post = pd.concat([
+                                           chunk.head(self.padding),
+                                           orig_pad_post.tail(self.padding)])
+                        self.save_df(pad_post_name, pad_post)
+                        chunk.drop(chunk.tail(self.padding).index, inplace=True)
+                else:
+                    pad_post = pd.concat([
+                                       chunk.head(self.padding),
+                                       orig_pad_post.tail(self.padding)])
+                    self.save_df(pad_post_name, pad_post)
+                    chunk.drop(chunk.tail(self.padding).index, inplace=True)
+
+            self.save_df(chunk_name, chunk)
 
     def load_df(self, str file_name):
         cdef df
@@ -140,6 +193,9 @@ class DataFrame(Environment):
         cdef pad, chunk
         cdef str chunk_name
         cdef tuple ref
+
+        self.is_padded = True
+        self.padding = padding
 
         for file in self.each_main_file():
             chunk_name = self.env[file, Environment.MAIN]

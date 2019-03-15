@@ -1,9 +1,9 @@
 import ltmdf
 import time
 
-"""
+
 def process(df):
-    df["delta time"] = df["A"].diff()
+    df["DT"] = df["B"].diff()
     return df
 
 
@@ -11,7 +11,7 @@ def print_(df):
     print(df)
     return df
 
-
+"""
 def x():
     df = ltmdf.DataFrame()
     df.from_csv(".\\DUMP.TXT", 100000, ["A", "B", "C"])
@@ -25,4 +25,5 @@ x()
 x = ltmdf.DataFrame()
 x.from_csv(".\\DUMP.TXT", 100000, ["A", "B", "C"])
 x.add_padding(5)
-x.print_chunks()
+x.run(process)
+x.run(print_)
