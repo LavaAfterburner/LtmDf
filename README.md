@@ -8,7 +8,7 @@ A python module to create larger than memory data frames for **pandas**, written
 
 ## ltmdf.Dataframe
 
-### Example:
+### Example I: Reading Csv
 ```python
 df = ltmdf.DataFrame()
 df.from_csv("Long_Csv.txt", 1000000, ["time", "Value"])
@@ -28,10 +28,22 @@ Creates an environment in the run location, to store the larger than memory Data
 ### Why to use Padding
 To avoid NaN when using e.g. `diff` add padding to a DF. It adds the next rows of the df and ignores these after processing
 
+### Example II: Running commands on a DF
+```python
+(...)
+def get_delta_time(df):
+	df["delta time"] = df["time"].diff()
+	return df
+
+
+df.add_padding(1)
+df.run(get_delta_time)
+```
+
 ## ltmdf.Environment
 Designed for creating an environment for a larger than memory class
 
 ## Todo:
 
  - [x] Add padding to file
- - [ ] Run pandas methods on DF
+ - [x] Run pandas methods on DF

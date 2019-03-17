@@ -53,24 +53,24 @@ class Environment:
             self.to_file(file, file_out)
         return len(self.env_main_files) - 1
 
-    def add_support_file(self, parent, file, mode="wb"):
+    def add_support_file(self, parent, name, file, mode="wb"):
         if parent not in self.env_support_files:
-            self.env_support_files[parent] = list()
+            self.env_support_files[parent] = dict()
 
-        cdef str name = self.next_support_name()
-        self.env_support_files[parent].append(name)
+        cdef str file_name = self.next_support_name()
+        self.env_support_files[parent][name] = file_name
         self.env_count += 1
-        with open(name, mode) as file_out:
+        with open(file_name, mode) as file_out:
             self.to_file(file, file_out)
 
-        return (parent, len(self.env_support_files[parent]) - 1)
+        return (parent, name)
 
-    def add_support_reference(self, parent, index):
+    def add_support_reference(self, parent, name, ref):
         if parent not in self.env_support_files:
-            self.env_support_files[parent] = list()
+            self.env_support_files[parent] = dict()
 
-        self.env_support_files[parent].append(
-            self[index[0], Environment.SUPPORT][index[1]])
+        self.env_support_files[parent][name] = \
+            self[ref[0], Environment.SUPPORT][ref[1]]
 
     def next_env_name(self):
         cdef dir
@@ -123,51 +123,47 @@ class DataFrame(Environment):
         cdef orig_pad_pre, orig_pad_post
 
         for file in self.each_main_file():
+            print("====================================")
+            print(file, self.env[file, Environment.SUPPORT])
             chunk_name = self.env[file, Environment.MAIN]
             chunk = self.load_df(chunk_name)
 
             if self.is_padded:
                 if file != 0:
-                    pad_pre_name = self.env[file, Environment.SUPPORT][0]
-                    pad_pre = self.load_df(pad_pre_name)
-                    orig_pad_pre = pad_pre
-                    chunk = pd.concat([pad_pre, chunk])
+                    pad_pre_name = self.env[file, Environment.SUPPORT]["pre"]
+                    orig_pad_pre = self.load_df(pad_pre_name)
+                    pad_pre = orig_pad_pre
+                    #print(pad_pre)
+                    #print(orig_pad_pre.head(5))
+                    chunk = pd.concat([pad_pre, chunk], sort=False)
 
-                    if file != len(self.env_main_files) - 1:
-                        pad_post_name = self.env[file, Environment.SUPPORT][1]
-                        pad_post = self.load_df(pad_post_name)
-                        orig_pad_post = pad_post
-                        chunk = pd.concat([chunk, pad_post])
-
-                else:
-                    pad_post_name = self.env[file, Environment.SUPPORT][0]
-                    pad_post = self.load_df(pad_post_name)
-                    orig_pad_post = pad_post
-                    chunk = pd.concat([chunk, pad_post])
+                if file != len(self.env_main_files) - 1:
+                    pad_post_name = self.env[file, Environment.SUPPORT]["post"]
+                    orig_pad_post = self.load_df(pad_post_name)
+                    pad_post = orig_pad_post
+                    #print(pad_post)
+                    chunk = pd.concat([chunk, pad_post], sort=False)
 
             chunk = func(chunk, *args, **kwargs)
 
             if self.is_padded:
-                if file != 0:
-                    pad_pre = pd.concat([
-                                      orig_pad_pre.head(self.padding),
-                                      chunk.tail(self.padding)])
-                    self.save_df(pad_pre_name, pad_pre)
-                    chunk.drop(chunk.head(self.padding).index, inplace=True)
-
-                    if file != len(self.env_main_files) - 1:
-                        pad_post = pd.concat([
-                                           chunk.head(self.padding),
-                                           orig_pad_post.tail(self.padding)])
-                        self.save_df(pad_post_name, pad_post)
-                        chunk.drop(chunk.tail(self.padding).index, inplace=True)
-                else:
+                if file != len(self.env_main_files) - 1:
                     pad_post = pd.concat([
-                                       chunk.head(self.padding),
-                                       orig_pad_post.tail(self.padding)])
+                                       chunk.tail(2 * self.padding)
+                                           .head(self.padding),
+                                       orig_pad_post.tail(self.padding)],
+                                       sort=False)
                     self.save_df(pad_post_name, pad_post)
                     chunk.drop(chunk.tail(self.padding).index, inplace=True)
 
+                if file != 0:
+                    pad_pre = pd.concat([
+                                      orig_pad_pre.head(self.padding),
+                                      chunk.head(2 * self.padding)
+                                          .tail(self.padding)],
+                                      sort=False)
+                    self.save_df(pad_pre_name, pad_pre)
+                    chunk.drop(chunk.head(self.padding).index, inplace=True)
             self.save_df(chunk_name, chunk)
 
     def load_df(self, str file_name):
@@ -189,7 +185,7 @@ class DataFrame(Environment):
             self.add_main_file(chunk)
 
     def add_padding(self, int padding):
-        cdef int file, i
+        cdef int file
         cdef pad, chunk
         cdef str chunk_name
         cdef tuple ref
@@ -202,9 +198,9 @@ class DataFrame(Environment):
             chunk = self.load_df(chunk_name)
 
             if file != 0:
-                pad = pd.concat([pad, chunk.head(padding)])
-                ref = self.add_support_file(file, pad)
-                self.add_support_reference(file - 1, ref)
+                pad = pd.concat([pad, chunk.head(padding)], sort=False)
+                ref = self.add_support_file(file, "pre", pad)
+                self.add_support_reference(file - 1, "post", ref)
             pad = chunk.tail(padding)
 
             if file != 0:
@@ -221,24 +217,20 @@ class DataFrame(Environment):
         cdef pad_pre, chunk, pad_post
 
         for file in self.each_main_file():
-            print(self.env[file, Environment.SUPPORT])
+            print(file, self.env[file, Environment.SUPPORT])
             if file != 0:
-                pad_pre_name = self.env[file, Environment.SUPPORT][0]
+                pad_pre_name = self.env[file, Environment.SUPPORT]["pre"]
                 pad_pre = self.load_df(pad_pre_name)
+                print("PRE")
                 print(pad_pre)
 
-                if file != len(self.env_main_files) - 1:
-                    pad_post_name = self.env[file, Environment.SUPPORT][1]
-                    pad_post = self.load_df(pad_post_name)
-                    print(pad_post)
-
-            else:
-                pad_post_name = self.env[file, Environment.SUPPORT][0]
+            if file != len(self.env_main_files) - 1:
+                pad_post_name = self.env[file, Environment.SUPPORT]["post"]
                 pad_post = self.load_df(pad_post_name)
+                print("POST")
                 print(pad_post)
 
             chunk_name = self.env[file, Environment.MAIN]
             chunk = self.load_df(chunk_name)
-            print(chunk)
 
             print("=============================")
