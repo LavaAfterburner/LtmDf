@@ -3,6 +3,7 @@
 #cython: wraparound=False
 
 
+from __future__ import print_function
 import pandas as pd
 import pickle
 import os
@@ -116,15 +117,22 @@ class DataFrame(Environment):
         self.is_padded = False
         self.padding = 0
 
-    def run(self, func, *args, **kwargs):
+    def run(self, func, log_progess=False, *args, **kwargs):
 
-        cdef str pad_pre_name, chunk_name, pad_post_name
+        cdef str pad_pre_name, chunk_name, pad_post_name, progress
         cdef pad_pre, chunk, pad_post
         cdef orig_pad_pre, orig_pad_post
 
         for file in self.each_main_file():
+
+            if log_progess:
+                progess = "[{}/{}]".format(file + 1, len(self.env_main_files))
+                print(progess + "   ", end="\r")
+
             chunk_name = self.env[file, Environment.MAIN]
             chunk = self.load_df(chunk_name)
+            if log_progess:
+                print(progess + ".  ", end="\r")
 
             if self.is_padded:
                 if file != 0:
@@ -139,27 +147,32 @@ class DataFrame(Environment):
                     pad_post = orig_pad_post
                     chunk = pd.concat([chunk, pad_post], sort=False)
 
+            if log_progess:
+                print(progess + ".. ", end="\r")
             chunk = func(chunk, *args, **kwargs)
 
-            if self.is_padded:
-                if file != len(self.env_main_files) - 1:
-                    pad_post = pd.concat([
-                                       chunk.tail(2 * self.padding)
-                                           .head(self.padding),
-                                       orig_pad_post.tail(self.padding)],
-                                       sort=False)
-                    self.save_df(pad_post_name, pad_post)
-                    chunk.drop(chunk.tail(self.padding).index, inplace=True)
+            if log_progess:
+                print(progess + "...", end="\r")
+            if not chunk is None:
+                if self.is_padded:
+                    if file != len(self.env_main_files) - 1:
+                        pad_post = pd.concat([
+                                           chunk.tail(2 * self.padding)
+                                               .head(self.padding),
+                                           orig_pad_post.tail(self.padding)],
+                                           sort=False)
+                        self.save_df(pad_post_name, pad_post)
+                        chunk.drop(chunk.tail(self.padding).index, inplace=True)
 
-                if file != 0:
-                    pad_pre = pd.concat([
-                                      orig_pad_pre.head(self.padding),
-                                      chunk.head(2 * self.padding)
-                                          .tail(self.padding)],
-                                      sort=False)
-                    self.save_df(pad_pre_name, pad_pre)
-                    chunk.drop(chunk.head(self.padding).index, inplace=True)
-            self.save_df(chunk_name, chunk)
+                    if file != 0:
+                        pad_pre = pd.concat([
+                                          orig_pad_pre.head(self.padding),
+                                          chunk.head(2 * self.padding)
+                                              .tail(self.padding)],
+                                          sort=False)
+                        self.save_df(pad_pre_name, pad_pre)
+                        chunk.drop(chunk.head(self.padding).index, inplace=True)
+                self.save_df(chunk_name, chunk)
 
     def load_df(self, str file_name):
         cdef df

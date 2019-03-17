@@ -37,10 +37,11 @@ def get_delta_time(df):
 
 
 df.add_padding(1)
-df.run(get_delta_time)
+df.run(get_delta_time, log_progess=True)
 ```
-##### run(func, *args, **kwargs)
+##### run(func, log_progess=False, *args, **kwargs)
 `get_delta_time` Function with a minimum of 1 parameter (the df) that gets called for each chunk of the large df
+`log_progess=True` Prints the current progess (e.g. 20/45)
 `*args` Args to pass to function
 `**kwargs` Kwargs to pass to function
 
