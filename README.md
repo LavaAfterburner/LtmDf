@@ -45,6 +45,9 @@ df.run(get_delta_time, log_progess=True)
 `*args` Args to pass to function
 `**kwargs` Kwargs to pass to function
 
+### Warning
+If you have made changes to the df in the run method (e.g. `get_delta_time`) don't forget to return the df (`return df`) If you don't return it, ltmdf will ignore the save method
+
 ### Limitations
 You cannot add rows to the df, only columns
 
