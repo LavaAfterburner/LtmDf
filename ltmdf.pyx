@@ -123,8 +123,6 @@ class DataFrame(Environment):
         cdef orig_pad_pre, orig_pad_post
 
         for file in self.each_main_file():
-            print("====================================")
-            print(file, self.env[file, Environment.SUPPORT])
             chunk_name = self.env[file, Environment.MAIN]
             chunk = self.load_df(chunk_name)
 
@@ -133,15 +131,12 @@ class DataFrame(Environment):
                     pad_pre_name = self.env[file, Environment.SUPPORT]["pre"]
                     orig_pad_pre = self.load_df(pad_pre_name)
                     pad_pre = orig_pad_pre
-                    #print(pad_pre)
-                    #print(orig_pad_pre.head(5))
                     chunk = pd.concat([pad_pre, chunk], sort=False)
 
                 if file != len(self.env_main_files) - 1:
                     pad_post_name = self.env[file, Environment.SUPPORT]["post"]
                     orig_pad_post = self.load_df(pad_post_name)
                     pad_post = orig_pad_post
-                    #print(pad_post)
                     chunk = pd.concat([chunk, pad_post], sort=False)
 
             chunk = func(chunk, *args, **kwargs)

@@ -23,6 +23,7 @@ x()
 """
 
 x = ltmdf.DataFrame()
-x.from_csv(".\\DUMP SMALL.TXT", 100000, ["A", "B", "C"])
-x.add_padding(5)
+x.from_csv(".\\DUMP SMALL.TXT", 200000, ["A", "B", "C"])
+x.add_padding(1)
+x.run(process)
 x.run(print_)
