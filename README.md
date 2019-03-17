@@ -14,7 +14,7 @@ df = ltmdf.DataFrame()
 df.from_csv("Long_Csv.txt", 1000000, ["time", "Value"])
 df.add_padding(2)
 ```
-##### from_csv(...)
+##### from_csv(path, chunk_len, columns, **kwargs)
  1. `"Long_Csv.txt"` Csv File
  2. `1000000` Rows per chunk
  3. `["time", "value"]` Column names
@@ -39,11 +39,20 @@ def get_delta_time(df):
 df.add_padding(1)
 df.run(get_delta_time)
 ```
+##### run(func, *args, **kwargs)
+`get_delta_time` Function with a minimum of 1 parameter (the df) that gets called for each chunk of the large df
+`*args` Args to pass to function
+`**kwargs` Kwargs to pass to function
+
+### Limitations
+You cannot add rows to the df, only columns
 
 ## ltmdf.Environment
 Designed for creating an environment for a larger than memory class
 
 ## Todo:
 
- - [x] Add padding to file
- - [x] Run pandas methods on DF
+ - [x] ~~Add padding to file~~
+ - [x] ~~Run pandas methods on DF~~
+ - [ ] Load and Save DF
+ - [ ] Zip DF
