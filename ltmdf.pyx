@@ -15,7 +15,7 @@ class Environment:
     SUPPORT = 0
     MAIN = 1
 
-    def __init__(self, name="", preserved=False, zipped=False):
+    def __init__(self, name="", preserved=False, zipped=False, load_env=False):
         self.env = self
         self.env_name = name
         self.env_count = 0
@@ -24,16 +24,28 @@ class Environment:
         self.env_is_preserved = preserved
         self.env_is_zipped = zipped
 
-        if self.env_name == "":
-            self.create_env()
+        if not load_env:
+            self.create_env(name)
         else:
-            self.load_env()
+            self.load_env(name)
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+
+    def cleanup(self):
         if not self.env_is_preserved:
             self.destroy_env()
-        elif self.env_is_zipped:
+        else:
+            self.save_env_data()
+        if self.env_is_zipped:
             self.zip_env()
+
+    def __del__(self):
+        pass
+        #self.cleanup()
 
     def __getitem__(self, index):
         cdef int type = index[1]
@@ -87,18 +99,28 @@ class Environment:
     def next_support_name(self):
         return "{}\\{}[S]".format(self.env_name, self.env_count)
 
-    def create_env(self):
-        self.env_name = self.next_env_name()
+    def create_env(self, str name):
+        if name == "":
+            self.env_name = self.next_env_name()
+        else:
+            self.env_name = name
         os.makedirs(self.env_name)
 
     def destroy_env(self):
         shutil.rmtree(self.env_name)
 
+    def save_env_data(self):
+        with open("{}\\ltmdf".format(self.env_name), mode="wb") as file_out:
+            self.to_file(self.__dict__, file_out)
+
     def zip_env(self):
         pass
 
-    def load_env(self):
-        pass
+    def load_env(self, name):
+        with open("{}\\ltmdf".format(self.env_name), mode="rb") as file_in:
+            self.__dict__.clear()
+            self.__dict__.update(self.from_file(file_in))
+            self.env = self
 
     def to_file(self, file, file_out):
         pickle.dump(file, file_out)
@@ -216,6 +238,11 @@ class DataFrame(Environment):
             if file != len(self.env_main_files) - 1:
                 chunk.drop(chunk.tail(padding).index, inplace=True)
             self.save_df(chunk_name, chunk)
+
+    def no_padding(self, df):
+        df.drop(df.head(self.padding / 2).index, inplace=True)
+        df.drop(df.tail(self.padding / 2).index, inplace=True)
+        return df
 
     def print_chunks(self):
         print("Printing")

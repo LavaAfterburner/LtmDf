@@ -1,18 +1,19 @@
 
 
+
 # LTMDF
 
 A python module to create larger than memory data frames for **pandas**, written in **Cython** for optimal performance.
 
 (**L**arger **T**han **M**emory **D**ata **F**rame)
 
-## ltmdf.Dataframe
+## ltmdf.DataFrame
 
 ### Example I: Reading Csv
 ```python
-df = ltmdf.DataFrame()
-df.from_csv("Long_Csv.txt", 1000000, ["time", "Value"])
-df.add_padding(2)
+with ltmdf.DataFrame() as df:
+	df.from_csv("Long_Csv.txt", 1000000, ["time", "Value"])
+	df.add_padding(2)
 ```
 ##### from_csv(path, chunk_len, columns, **kwargs)
  1. `"Long_Csv.txt"` Csv File
@@ -30,14 +31,14 @@ To avoid NaN when using e.g. `diff` add padding to a DF. It adds the next rows o
 
 ### Example II: Running commands on a DF
 ```python
-(...)
 def get_delta_time(df):
 	df["delta time"] = df["time"].diff()
 	return df
 
-
-df.add_padding(1)
-df.run(get_delta_time, log_progess=True)
+with ltmdf.DataFrame() as df:
+	(...)
+	df.add_padding(1)
+	df.run(get_delta_time, log_progess=True)
 ```
 ##### run(func, log_progess=False, *args, **kwargs)
 `get_delta_time` Function with a minimum of 1 parameter (the df) that gets called for each chunk of the large df
@@ -58,5 +59,5 @@ Designed for creating an environment for a larger than memory class
 
  - [x] ~~Add padding to file~~
  - [x] ~~Run pandas methods on DF~~
- - [ ] Load and Save DF
+ - [x] ~~Load and Save DF~~
  - [ ] Zip DF
