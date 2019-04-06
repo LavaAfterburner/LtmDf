@@ -42,6 +42,7 @@ class Environment:
             self.save_env_data()
         if self.env_is_zipped:
             self.zip_env()
+            self.destroy_env()
 
     def __del__(self):
         pass
@@ -114,9 +115,17 @@ class Environment:
             self.to_file(self.__dict__, file_out)
 
     def zip_env(self):
-        pass
+        shutil.make_archive("{}".format(self.env_name), "zip", self.env_name)
+
+    def unzip_env(self):
+        shutil.unpack_archive(self.env_name, self.env_name.strip(".zip"), "zip")
+        os.remove(self.env_name)
+        self.env_name = self.env_name.strip(".zip")
 
     def load_env(self, name):
+        if name.endswith(".zip"):
+            self.unzip_env()
+
         with open("{}\\ltmdf".format(self.env_name), mode="rb") as file_in:
             self.__dict__.clear()
             self.__dict__.update(self.from_file(file_in))
